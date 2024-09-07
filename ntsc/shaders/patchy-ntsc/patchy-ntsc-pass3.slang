@@ -47,8 +47,24 @@ layout(set = 0, binding = 2) uniform sampler2D Source;
 
 void main()
 {
-    if(global.pn_connection_type > 1.5) { // YPbPr or RGB
-        FragColor = texture(Source, vTexCoord);
+    if(global.pn_connection_type > 1.5) { // No Artifacts
+        
+        mat3x2 yuvAxisPts = yuvAxisPointsSynced();
+        
+        float xr, yr, xg, yg, xb, yb;
+        xr = yuvAxisPts[0][1] * cos(yuvAxisPts[0][0]);
+        yr = yuvAxisPts[0][1] * sin(yuvAxisPts[0][0]);
+        xg = yuvAxisPts[1][1] * cos(yuvAxisPts[1][0]);
+        yg = yuvAxisPts[1][1] * sin(yuvAxisPts[1][0]);
+        xb = yuvAxisPts[2][1] * cos(yuvAxisPts[2][0]);
+        yb = yuvAxisPts[2][1] * sin(yuvAxisPts[2][0]);
+        
+        // YUV to Y B-Y R-Y matrix
+        mat3 toYBmyRmy = mat3(1, 0, 0,
+                              0, xb, xr,
+                              0, yb, yr);
+        
+        FragColor = vec4(toYBmyRmy * texture(Source, vTexCoord).rgb, 1.0);
     } else {
         float luma = 0.0;
         float chroma = 0.0;

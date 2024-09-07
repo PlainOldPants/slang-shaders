@@ -138,7 +138,7 @@ layout(std140, set = 0, binding = 0) uniform UBO
 
 #pragma parameter pn_comment_genesis_jailbar "=== Genesis Settings ===" 0 0 0 1
 #pragma parameter pn_genesis_palette "Genesis Plus GX color fix (not for BlastEm or other consoles)" 0 0 1 1
-#pragma parameter pn_genesis_jailbar_enable "Enable Genesis/MegaDrive jailbars on solid backgrounds" 0 0 1 1
+#pragma parameter pn_genesis_jailbar_enable "Enable Genesis jailbars on solid backgrounds (Composite only)" 0 0 1 1
 #pragma parameter pn_genesis_jailbar_offset "Genesis Jailbars Offset" 0 0 1 0.0625
 #pragma parameter pn_genesis_jailbar_amplitude "Genesis Jailbars Severity" 1.0 0.1 3.0 0.1
 
@@ -223,10 +223,9 @@ layout(std140, set = 0, binding = 0) uniform UBO
 #pragma parameter pn_demodulator_g_amp "Custom G-Y gain" 0.33 0.0 1.00 0.01
 
 #pragma parameter pn_comment_connection "=== Video cable type (including console and CRT mods) ===" 0 0 0 1
-#pragma parameter pn_connection_type "Composite, S-Video mod, bad YPbPr mod (changed by jungle), RGB" 0 0 3 1
-#pragma parameter pn_comment_nes_connections "= Note: NES only supports CVBS (Composite) =" 0 0 0 1
-#pragma parameter pn_comment_rf_connection "= For RF, use CVBS and adjust the demodulator filters =" 0 0 0 1
-#pragma parameter pn_comment_svideo_connection "= With S-Video and YPbPr, consider disabling some/all filters =" 0 0 0 1
+#pragma parameter pn_connection_type "Cable: Composite | S-Video mod | No Artifacts" 0 0 2 1
+#pragma parameter pn_comment_nes_connections "= NES only supports composite due to hardware limitations =" 0 0 0 1
+#pragma parameter pn_comment_svideo_info "= With the S-Video mod, try reducing the console's filters =" 0 0 0 1
 
 #pragma parameter pn_comment_knobs "=== CRT End User Color Knobs ===" 0 0 0 1
 #pragma parameter pn_knob_contrast "CRT Contrast (Picture)" 0.8 0 2 0.025

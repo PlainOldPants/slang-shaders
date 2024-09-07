@@ -359,11 +359,8 @@ void main()
             
             FragColor = vec4(luma, chroma, 0, 1);
         } else if(global.pn_connection_type < 2.5) {
-            // Poorly done YPbPr mod
-            FragColor = vec4(yuvCol.r, colorIn.b - yuvCol.r, colorIn.r - yuvCol.r, 1);
-        } else {
-            // RGB
-            FragColor = colorIn;
+            // No Artifacts
+            FragColor = vec4(yuvCol, 1);
         }
     }
 }

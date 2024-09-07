@@ -49,45 +49,40 @@ void main()
 {
     vec4 orig = texture(Source, vTexCoord);
     if(global.pn_nes_enable > 0.5 || global.pn_connection_type > 1.5) {
-        // NES or RGB
+        // NES or No Artifacts
         FragColor = orig;
     } else {
+        // Composite or S-Video
+        
         float luma = 0.0;
         float chroma = 0.0;
-        float genesisJailbar = 0.0;
         
         // Filter luma before combining with chroma.
-        // Some S-Video and YPbPr mods might still have lowpassed luma.
+        // Some S-Video mods might still have lowpassed luma.
         luma = lowpassPickable(global.pn_modulator_luma_filter_type,
             global.pn_modulator_luma_filter_width, global.pn_modulator_luma_filter_level,
             global.pn_modulator_luma_sigma, global.pn_modulator_luma_radius,
             global.pn_modulator_luma_res).r;
         
-        if(global.pn_connection_type < 1.5) {
-            // Composite or S-Video
-            chroma = bandpassPickable(global.pn_modulator_chroma_filter_type,
-                global.pn_modulator_chroma_filter_width, global.pn_modulator_chroma_filter_level, global.pn_modulator_chroma_filter_level_diff).g;
+        chroma = bandpassPickable(global.pn_modulator_chroma_filter_type,
+            global.pn_modulator_chroma_filter_width, global.pn_modulator_chroma_filter_level, global.pn_modulator_chroma_filter_level_diff).g;
+        
+        if(global.pn_connection_type < 0.5 && global.pn_genesis_jailbar_enable > 0.5) {
+            // Compensate for cropped overscan, assuming equal crop on both sides.
+            // Current position in pixels, both x and y being decimal numbers.
+            vec2 pixelCoord = realPixelCoord();
             
-            if(global.pn_connection_type < 0.5 && global.pn_genesis_jailbar_enable > 0.5) {
-                // Compensate for cropped overscan, assuming equal crop on both sides.
-                // Current position in pixels, both x and y being decimal numbers.
-                vec2 pixelCoord = realPixelCoord();
-                
-                // This is not to be confused with the rainbow banding effect seen elsewhere on the Genesis, such as in the waterfall in Sonic 1.
-                // I don't even know what actually is causing the jailbars on the Model 1 Genesis, but this looks about right.
-                // From what I've read, these jailbars are largely missing on the Genesis model 1 VA6 revision onward, and it can be fixed on earlier model 1s by adjusting the capacitors.
-                // 0.0075 matched by eye, not precise.
-                genesisJailbar = 0.0075 * global.pn_genesis_jailbar_amplitude * -cos(pi * pixelCoord.x + 2 * pi * global.pn_genesis_jailbar_offset);
-            }
-            
-            if(global.pn_connection_type < 0.5) { // Composite
-                FragColor = vec4(luma + chroma + genesisJailbar, 0, 0, 1);
-            } else { // S-Video
-                FragColor = vec4(chroma, luma, 0, 1);
-            }
-        } else {
-            // YPbPr mod
-            FragColor = vec4(luma, orig.gb, 1.0);
+            // This is not to be confused with the rainbow banding effect seen elsewhere on the Genesis, such as in the waterfall in Sonic 1.
+            // I don't even know what actually is causing the jailbars on the Model 1 Genesis, but this looks about right.
+            // From what I've read, these jailbars are largely missing on the Genesis model 1 VA6 revision onward, and it can be fixed on earlier model 1s by adjusting the capacitors.
+            // 0.0075 matched by eye, not precise.
+            chroma += 0.0075 * global.pn_genesis_jailbar_amplitude * -cos(pi * pixelCoord.x + 2 * pi * global.pn_genesis_jailbar_offset);
+        }
+        
+        if(global.pn_connection_type < 0.5) { // Composite
+            FragColor = vec4(luma + chroma, 0, 0, 1);
+        } else { // S-Video
+            FragColor = vec4(chroma, luma, 0, 1);
         }
     }
 }
