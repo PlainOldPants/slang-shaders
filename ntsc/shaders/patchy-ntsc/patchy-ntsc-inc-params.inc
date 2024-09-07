@@ -14,24 +14,25 @@ You should have received a copy of the GNU General Public License along with thi
 #ifndef __patchy_ntsc_inc_params_inc__
 #define __patchy_ntsc_inc_params_inc__
 
-// NES simulation requires SIGNAL_RES to be exactly 8. Not 16. Not 4. Only 8.
-// Some code involving NES has 8 hardcoded, and some code uses SIGNAL_RES instead.
-#define SIGNAL_RES 8
-#define pi 3.14159265358
-
 layout(std140, set = 0, binding = 0) uniform UBO
 {
     mat4 MVP;
     
     float pn_test_pattern,
+          pn_test_pattern_split,
           pn_width_uncropped,
           pn_height_uncropped,
+          pn_width_integer_mul,
+          pn_height_integer_mul,
+          pn_dual_width_mode,
+          pn_width_secondary_uncropped,
           pn_scanline_dur,
           pn_color_amplitude,
           pn_color_freq,
           pn_color_init_offset,
           pn_color_line_offset,
           pn_color_screen_offset,
+          pn_color_screen_offset_modulo,
           pn_nes_enable,
           pn_nes_phase_mod,
           pn_nes_real_capture,
@@ -40,6 +41,8 @@ layout(std140, set = 0, binding = 0) uniform UBO
           pn_genesis_jailbar_enable,
           pn_genesis_jailbar_offset,
           pn_genesis_jailbar_amplitude,
+          pn_rgb_blur_enable,
+          pn_rgb_blur_amount,
           pn_modulator_std,
           pn_modulator_luma_filter_type,
           pn_modulator_luma_filter_width,
@@ -94,8 +97,10 @@ layout(std140, set = 0, binding = 0) uniform UBO
           pn_demodulator_chroma_eq_g_hi,
           pn_demodulator_chroma_eq_off,
           pn_demodulator_chroma_eq_dist,
+          pn_demodulator_uv_filter_type,
           pn_demodulator_uv_filter_width,
-          pn_demodulator_uv_filter_level,
+          pn_connection_type,
+          pn_bad_rgb_gamma,
           pn_knob_contrast,
           pn_knob_brightness,
           pn_knob_saturation,
@@ -114,10 +119,15 @@ layout(std140, set = 0, binding = 0) uniform UBO
 
 #pragma parameter pn_comment_test_pattern "=== Test Patterns ===" 0 0 0 1
 #pragma parameter pn_test_pattern "Test Pattern: Color Bars, Ramps, HSV, Focused HSV, NES Full" 0 0 5 1
+#pragma parameter pn_test_pattern_split "Test pattern split mode (if available)" 0 0 1 1
 
-#pragma parameter pn_comment_resolution "=== Auto detect cropped overscan ===" 0 0 0 1
-#pragma parameter pn_width_uncropped "Console Horizontal Resolution (pixels)" 320 128 720 1
-#pragma parameter pn_height_uncropped "Console Vertical Resolution (pixels)" 224 128 480 1
+#pragma parameter pn_comment_resolution "=== Auto detect cropped overscan and resolution changes ===" 0 0 0 1
+#pragma parameter pn_width_uncropped "Console Horizontal Resolution (pixels) (rec. even numbers only)" 320 128 720 1
+#pragma parameter pn_height_uncropped "Console Vertical Resolution (pixels) (rec. 240 or 224 only)" 224 128 480 1
+#pragma parameter pn_width_integer_mul "Detect integer-multiplied width (such as SNES)" 1 0 1 1
+#pragma parameter pn_height_integer_mul "Detect integer-multiplied height (such as interlaced video)" 1 0 1 1
+#pragma parameter pn_dual_width_mode "Detect two horizontal resolutions (such as Genesis 320 vs 256)" 0 0 1 1
+#pragma parameter pn_width_secondary_uncropped "Console Smaller Horizontal Resolution (pixels)" 256 128 720 1
 
 #pragma parameter pn_comment_nes "=== NES Settings ===" 0 0 0 1
 #pragma parameter pn_comment_nes_palette "== Note: Use Mesen (not FCEUmm) and change palette to Raw ==" 0 0 0 1
@@ -132,6 +142,10 @@ layout(std140, set = 0, binding = 0) uniform UBO
 #pragma parameter pn_genesis_jailbar_offset "Genesis Jailbars Offset" 0 0 1 0.0625
 #pragma parameter pn_genesis_jailbar_amplitude "Genesis Jailbars Severity" 1.0 0.1 3.0 0.1
 
+#pragma parameter pn_comment_snes_settings "=== SNES Settings ===" 0 0 0 1
+#pragma parameter pn_rgb_blur_enable "Enable RGB linear blur (such as 2-chip SNES)" 0 0 1 1
+#pragma parameter pn_rgb_blur_amount "RGB linear blur distance" 1.0 0.25 2.0 0.125
+
 #pragma parameter pn_comment_color_carrier "=== Color carrier settings ===" 0 0 0 1
 #pragma parameter pn_scanline_dur "Scanline Duration (uSec)" 47.6 1.0 300.0 0.1
 #pragma parameter pn_color_amplitude "Color Carrier Amplitude" 1.0 0.025 1.5 0.025 
@@ -139,36 +153,37 @@ layout(std140, set = 0, binding = 0) uniform UBO
 #pragma parameter pn_color_init_offset "Color Carrier Initial Offset" 0.1 0 1 0.02
 #pragma parameter pn_color_line_offset "Color Carrier Per-Line Offset" 0 0 1 0.02
 #pragma parameter pn_color_screen_offset "Color Carrier Per-Frame Offset" 0 0 1 0.02
+#pragma parameter pn_color_screen_offset_modulo "Color Carrier Frame Count Modulo (1 = infinity)" 1 1 10 1
 
 #pragma parameter pn_comment_modulator_std "=== Console video standard (Most are Rec. 601) ===" 0 0 0 1
 #pragma parameter pn_modulator_std "Modulator standard: Rec. 601 | Rec. 709" 0 0 1 1
 
 #pragma parameter pn_comment_mod_luma_lowpass "=== (Not NES) Console's filtering luma/chroma before adding ===" 0 0 0 1
-#pragma parameter pn_modulator_luma_filter_type "Mod. Luma Lowpass Type" 0 -1 3 1
+#pragma parameter pn_modulator_luma_filter_type "Mod. Luma Lowpass Type" 0 -1 2 1
 #pragma parameter pn_modulator_luma_filter_width "Mod. Luma Lowpass (0) Sinc Half-Width" 9 0 30 0.25
 #pragma parameter pn_modulator_luma_filter_level "Mod. Luma Lowpass (0) Sinc Cutoff Frequency (MHz)" 3.05 0.5 40.0 0.025
 #pragma parameter pn_modulator_luma_radius "Mod. Luma Lowpass (1) Gaussian Blur Radius" 3.0 0.1 15.0 0.1
 #pragma parameter pn_modulator_luma_sigma "Mod. Luma Lowpass (1) Gaussian Blur Sigma" 1.5 0.1 15.0 0.01
 #pragma parameter pn_modulator_luma_res "Mod. Luma Lowpass (2) GTU Signal Res Y" 180 10 800 2
-#pragma parameter pn_modulator_luma_eq_f_lo "Mod. Luma 3 band eq (3) Low freq (MHz)" 1.5 0.025 5.5 0.025
-#pragma parameter pn_modulator_luma_eq_f_hi "Mod. Luma 3 band eq (3) Hi freq (MHz)" 3.0 0.025 5.5 0.025
-#pragma parameter pn_modulator_luma_eq_g_lo "Mod. Luma 3 band eq (3) Low gain" 1.0 0.025 1.0 0.025
-#pragma parameter pn_modulator_luma_eq_g_mid "Mod. Luma 3 band eq (3) Mid gain" 0.125 0.025 1.0 0.025
-#pragma parameter pn_modulator_luma_eq_g_hi "Mod. Luma 3 band eq (3) High gain" 0.15 0.025 1.0 0.025
-#pragma parameter pn_modulator_luma_eq_off "Mod. Luma 3 band eq (3) offset (pixels)" 0.5 0 4 0.0125
-#pragma parameter pn_modulator_luma_eq_dist "Mod. Luma 3 band eq (3) max distance (% screen)" 20 5 40.0 0.25
+//#pragma parameter pn_modulator_luma_eq_f_lo "Mod. Luma 3 band eq (3) Low freq (MHz)" 1.5 0.025 5.5 0.025
+//#pragma parameter pn_modulator_luma_eq_f_hi "Mod. Luma 3 band eq (3) Hi freq (MHz)" 3.0 0.025 5.5 0.025
+//#pragma parameter pn_modulator_luma_eq_g_lo "Mod. Luma 3 band eq (3) Low gain" 1.0 0.025 1.0 0.025
+//#pragma parameter pn_modulator_luma_eq_g_mid "Mod. Luma 3 band eq (3) Mid gain" 0.125 0.025 1.0 0.025
+//#pragma parameter pn_modulator_luma_eq_g_hi "Mod. Luma 3 band eq (3) High gain" 0.15 0.025 1.0 0.025
+//#pragma parameter pn_modulator_luma_eq_off "Mod. Luma 3 band eq (3) offset (pixels)" 0.5 0 4 0.0125
+//#pragma parameter pn_modulator_luma_eq_dist "Mod. Luma 3 band eq (3) max distance (% screen)" 20 5 40.0 0.25
 
-#pragma parameter pn_modulator_chroma_filter_type "Mod. Chroma Bandpass Type" 0 -1 1 1
+#pragma parameter pn_modulator_chroma_filter_type "Mod. Chroma Bandpass Type" 0 -1 0 1
 #pragma parameter pn_modulator_chroma_filter_width "Mod. Chroma Bandpass (0) Half-Width" 5 0 30 0.25
 #pragma parameter pn_modulator_chroma_filter_level "Mod. Chroma Bandpass (0) Low Frequency (MHz)" 3.55 0.5 6.0 0.025
 #pragma parameter pn_modulator_chroma_filter_level_diff "Mod. Chroma Bandpass (0) High Frequency (MHz)" 3.6 0.5 6.0 0.025
-#pragma parameter pn_modulator_chroma_eq_f_lo "Mod. Chroma 3 band eq (1) Low freq (MHz)" 3.2 0.025 5.5 0.025
-#pragma parameter pn_modulator_chroma_eq_f_hi "Mod. Chroma 3 band eq (1) Hi freq (MHz)" 4.5 0.025 5.5 0.025
-#pragma parameter pn_modulator_chroma_eq_g_lo "Mod. Chroma 3 band eq (1) Low gain" 0.1 0.025 1.0 0.025
-#pragma parameter pn_modulator_chroma_eq_g_mid "Mod. Chroma 3 band eq (1) Mid gain" 1.0 0.025 1.0 0.025
-#pragma parameter pn_modulator_chroma_eq_g_hi "Mod. Chroma 3 band eq (1) High gain" 0.1 0.025 1.0 0.025
-#pragma parameter pn_modulator_chroma_eq_off "Mod. Chroma 3 band eq (3) offset (pixels)" 0.5 0 4 0.0125
-#pragma parameter pn_modulator_chroma_eq_dist "Mod. Chroma 3 band eq (1) max distance (% screen)" 20 5 40.0 0.25
+//#pragma parameter pn_modulator_chroma_eq_f_lo "Mod. Chroma 3 band eq (1) Low freq (MHz)" 3.2 0.025 5.5 0.025
+//#pragma parameter pn_modulator_chroma_eq_f_hi "Mod. Chroma 3 band eq (1) Hi freq (MHz)" 4.5 0.025 5.5 0.025
+//#pragma parameter pn_modulator_chroma_eq_g_lo "Mod. Chroma 3 band eq (1) Low gain" 0.1 0.025 1.0 0.025
+//#pragma parameter pn_modulator_chroma_eq_g_mid "Mod. Chroma 3 band eq (1) Mid gain" 1.0 0.025 1.0 0.025
+//#pragma parameter pn_modulator_chroma_eq_g_hi "Mod. Chroma 3 band eq (1) High gain" 0.1 0.025 1.0 0.025
+//#pragma parameter pn_modulator_chroma_eq_off "Mod. Chroma 3 band eq (3) offset (pixels)" 0.5 0 4 0.0125
+//#pragma parameter pn_modulator_chroma_eq_dist "Mod. Chroma 3 band eq (1) max distance (% screen)" 20 5 40.0 0.25
 
 #pragma parameter pn_comment_demod_filter "=== CRT Chroma/Luma Separation (a.k.a. comb filter) ===" 0 0 0 1
 #pragma parameter pn_demodulator_luma_filter_type "Demodulator Luma Lowpass Type" 0 -1 4 1
@@ -177,36 +192,41 @@ layout(std140, set = 0, binding = 0) uniform UBO
 #pragma parameter pn_demodulator_luma_radius "Demod. Luma Lowpass (1) Gaussian Blur Radius" 4.5 0.1 15.0 0.1
 #pragma parameter pn_demodulator_luma_sigma "Demod. Luma Lowpass (1) Gaussian Blur Sigma" 1.9 0.1 15.0 0.01
 #pragma parameter pn_demodulator_luma_res "Demod. Luma Lowpass (2) GTU Signal Res Y" 180 10 800 2
-#pragma parameter pn_demodulator_luma_eq_f_lo "Demod. Luma 3 band eq (3) Low freq (MHz)" 1.5 0.025 5.5 0.025
-#pragma parameter pn_demodulator_luma_eq_f_hi "Demod. Luma 3 band eq (3) Hi freq (MHz)" 3.0 0.025 5.5 0.025
-#pragma parameter pn_demodulator_luma_eq_g_lo "Demod. Luma 3 band eq (3) Low gain" 1.0 0.025 1.0 0.025
-#pragma parameter pn_demodulator_luma_eq_g_mid "Demod. Luma 3 band eq (3) Mid gain" 0.125 0.025 1.0 0.025
-#pragma parameter pn_demodulator_luma_eq_g_hi "Demod. Luma 3 band eq (3) High gain" 0.15 0.025 1.0 0.025
-#pragma parameter pn_demodulator_luma_eq_off "Demod. Luma 3 band eq (3) offset (pixels)" 0.5 0 4 0.0125
-#pragma parameter pn_demodulator_luma_eq_dist "Demod. Luma 3 band eq (3) max distance (% screen)" 20 5 40.0 0.25
+//#pragma parameter pn_demodulator_luma_eq_f_lo "Demod. Luma 3 band eq (3) Low freq (MHz)" 1.5 0.025 5.5 0.025
+//#pragma parameter pn_demodulator_luma_eq_f_hi "Demod. Luma 3 band eq (3) Hi freq (MHz)" 3.0 0.025 5.5 0.025
+//#pragma parameter pn_demodulator_luma_eq_g_lo "Demod. Luma 3 band eq (3) Low gain" 1.0 0.025 1.0 0.025
+//#pragma parameter pn_demodulator_luma_eq_g_mid "Demod. Luma 3 band eq (3) Mid gain" 0.125 0.025 1.0 0.025
+//#pragma parameter pn_demodulator_luma_eq_g_hi "Demod. Luma 3 band eq (3) High gain" 0.15 0.025 1.0 0.025
+//#pragma parameter pn_demodulator_luma_eq_off "Demod. Luma 3 band eq (3) offset (pixels)" 0.5 0 4 0.0125
+//#pragma parameter pn_demodulator_luma_eq_dist "Demod. Luma 3 band eq (3) max distance (% screen)" 20 5 40.0 0.25
 
-#pragma parameter pn_demodulator_chroma_filter_type "Demod. Chroma Bandpass Type" 0 -1 2 1
+#pragma parameter pn_demodulator_chroma_filter_type "Demod. Chroma Bandpass Type" 0 -1 1 1
 #pragma parameter pn_demodulator_chroma_filter_width "Demod. Chroma Bandpass (0) Half-Width" 5 0 30 0.25
 #pragma parameter pn_demodulator_chroma_filter_level "Demod. Chroma Bandpass (0) Low Frequency (MHz)" 3.55 0.5 6.0 0.025
 #pragma parameter pn_demodulator_chroma_filter_level_diff "Demod. Chroma Bandpass (0) High Frequency (MHz)" 3.6 0.5 6.0 0.025
-#pragma parameter pn_demodulator_chroma_eq_f_lo "Demod. Chroma 3 band eq (1) Low freq (MHz)" 3.2 0.025 5.5 0.025
-#pragma parameter pn_demodulator_chroma_eq_f_hi "Demod. Chroma 3 band eq (1) Hi freq (MHz)" 4.5 0.025 5.5 0.025
-#pragma parameter pn_demodulator_chroma_eq_g_lo "Demod. Chroma 3 band eq (1) Low gain" 0.1 0.025 1.0 0.025
-#pragma parameter pn_demodulator_chroma_eq_g_mid "Demod. Chroma 3 band eq (1) Mid gain" 1.0 0.025 1.0 0.025
-#pragma parameter pn_demodulator_chroma_eq_g_hi "Demod. Chroma 3 band eq (1) High gain" 0.1 0.025 1.0 0.025
-#pragma parameter pn_demodulator_chroma_eq_off "Demod. Chroma 3 band eq (3) offset (pixels)" 0.5 0 4 0.0125
-#pragma parameter pn_demodulator_chroma_eq_dist "Demod. Chroma 3 band eq (1) max distance (% screen)" 20 5 40.0 0.25
+//#pragma parameter pn_demodulator_chroma_eq_f_lo "Demod. Chroma 3 band eq (1) Low freq (MHz)" 3.2 0.025 5.5 0.025
+//#pragma parameter pn_demodulator_chroma_eq_f_hi "Demod. Chroma 3 band eq (1) Hi freq (MHz)" 4.5 0.025 5.5 0.025
+//#pragma parameter pn_demodulator_chroma_eq_g_lo "Demod. Chroma 3 band eq (1) Low gain" 0.1 0.025 1.0 0.025
+//#pragma parameter pn_demodulator_chroma_eq_g_mid "Demod. Chroma 3 band eq (1) Mid gain" 1.0 0.025 1.0 0.025
+//#pragma parameter pn_demodulator_chroma_eq_g_hi "Demod. Chroma 3 band eq (1) High gain" 0.1 0.025 1.0 0.025
+//#pragma parameter pn_demodulator_chroma_eq_off "Demod. Chroma 3 band eq (3) offset (pixels)" 0.5 0 4 0.0125
+//#pragma parameter pn_demodulator_chroma_eq_dist "Demod. Chroma 3 band eq (1) max distance (% screen)" 20 5 40.0 0.25
 
-//#pragma parameter pn_comment_uv_filter "=== CRT U and V lowpass - Little need to change this ===" 0 0 0 1
-//#pragma parameter pn_demodulator_uv_filter_width "Demodulator U and V Lowpass Half-Width" 6 0 30 0.25
-//#pragma parameter pn_demodulator_uv_filter_level "Demodulator U and V Lowpass Cutoff Frequency (MHz)" 4 0.5 40.0 0.025
+#pragma parameter pn_demodulator_uv_filter_type "B-Y R-Y Filter Type" 0 -1 0 1
+#pragma parameter pn_demodulator_uv_filter_width "B-Y R-Y Filter Width" 1 1 10 1
 
 #pragma parameter pn_comment_demod_std "=== CRT Jungle Chip: US are reverse chrono order thru 1990s ===" 0 0 0 1
-#pragma parameter pn_demodulator_std "Demodulator: Rec. 601, Rec. 709, 2*JP, 5*US, Custom" 8 0 9 1
+#pragma parameter pn_demodulator_std "R-Y/G-Y/B-Y formula: Rec. 601, Rec. 709, 2*JP, 5*US, Custom" 8 0 9 1
 #pragma parameter pn_demodulator_r_off "Custom R-Y offset" 112 90 130 1
 #pragma parameter pn_demodulator_r_amp "Custom R-Y gain" 0.84 0.0 1.00 0.01
 #pragma parameter pn_demodulator_g_off "Custom G-Y offset" 235 200 300 1
 #pragma parameter pn_demodulator_g_amp "Custom G-Y gain" 0.33 0.0 1.00 0.01
+
+#pragma parameter pn_comment_connection "=== Video cable type (including console and CRT mods) ===" 0 0 0 1
+#pragma parameter pn_connection_type "Composite, S-Video mod, bad YPbPr mod (changed by jungle), RGB" 0 0 3 1
+#pragma parameter pn_comment_nes_connections "= Note: NES only supports CVBS (Composite) =" 0 0 0 1
+#pragma parameter pn_comment_rf_connection "= For RF, use CVBS and adjust the demodulator filters =" 0 0 0 1
+#pragma parameter pn_comment_svideo_connection "= With S-Video and YPbPr, consider disabling some/all filters =" 0 0 0 1
 
 #pragma parameter pn_comment_knobs "=== CRT End User Color Knobs ===" 0 0 0 1
 #pragma parameter pn_knob_contrast "CRT Contrast (Picture)" 0.8 0 2 0.025
@@ -217,14 +237,14 @@ layout(std140, set = 0, binding = 0) uniform UBO
 #pragma parameter pn_comment_smearing "=== Red (and some blue) smearing to the right ===" 0 0 0 1
 #pragma parameter pn_rgb_smear_enable "Enable Smearing (Should be off unless your CRT is wearing out)" 0 0 1 1
 #pragma parameter pn_rgb_smear_clamp "RGB Clamp Level (any value above this becomes equal to this)" 1.5 1.0 3.0 0.05
-#pragma parameter pn_rgb_smear_rate "RGB Smear Level (after clamping, anything above this smears)" 1.0 1.0 3.0 0.05
+#pragma parameter pn_rgb_smear_rate "RGB Smear Level (after clamping, anything above this smears)" 1.15 1.0 3.0 0.05
 #pragma parameter pn_rgb_smear_limit "Max Smear Detection Distance (% of screen)" 30 0 100 0.25
 #pragma parameter pn_rgb_smear_res "Smear Resolution (Higher is more intense but more accurate)" 1 1 3 1
 
 #pragma parameter pn_comment_phosphor "=== CRT Gamma and Phosphor Gamut ===" 0 0 0 1
 #pragma parameter pn_gamma_type "Gamma: BT.1886 + Grade black lift fix | BT.1886 | Power | sRGB" 1 0 3 1
 #pragma parameter pn_g_CRT_l        "Black lift fix approximate gamma"                  2.50   2.30  2.60 0.01
-#pragma parameter pn_power_gamma "Power gamma" 2.4 2.2 3.0 0.01
+#pragma parameter pn_power_gamma "Power gamma" 2.4 1.5 3.5 0.01
 
 #endif // __patchy_ntsc_inc_params_inc__
 

@@ -47,16 +47,26 @@ layout(set = 0, binding = 2) uniform sampler2D Source;
 
 void main()
 {
-    float y = texture(Source, vTexCoord).r;
-    
-    // A slight lowpass on B-Y and R-Y after demodulating
-    vec2 rmybmy = lowpassGTU(240).gb;
-    
     vec3 rgb;
-    if(global.pn_nes_enable > 0.5 && global.pn_nes_real_capture > 0.5) {
-        rgb = nesRealCaptureLookup(vec3(y, rmybmy), global.pn_knob_saturation);
+    if(global.pn_connection_type > 2.5) {
+        // RGB
+        rgb = texture(Source, vTexCoord).rgb;
     } else {
-        rgb = YBmyRmyToRGBMatrix() * vec3(y, rmybmy * global.pn_knob_saturation);
+        float y = texture(Source, vTexCoord).r;
+        vec2 rmybmy;
+        
+        if(global.pn_connection_type < 1.5) { // Composite and S-Video
+            // A slight lowpass on B-Y and R-Y after demodulating
+            rmybmy = uvFilterPickable(global.pn_demodulator_uv_filter_type);
+        } else {
+            rmybmy = texture(Source, vTexCoord).gb;
+        }
+        
+        if(global.pn_nes_enable > 0.5 && global.pn_nes_real_capture > 0.5) {
+            rgb = nesRealCaptureLookup(vec3(y, rmybmy), global.pn_knob_saturation);
+        } else {
+            rgb = YBmyRmyToRGBMatrix() * vec3(y, rmybmy * global.pn_knob_saturation);
+        }
     }
     
     rgb = (rgb + global.pn_knob_brightness) / (1 + global.pn_knob_brightness);

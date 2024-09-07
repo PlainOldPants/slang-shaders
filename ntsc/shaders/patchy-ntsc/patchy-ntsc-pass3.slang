@@ -47,74 +47,76 @@ layout(set = 0, binding = 2) uniform sampler2D Source;
 
 void main()
 {
-    float luma = 0.0;
-    float chroma = 0.0;
-    
-    float phase = getPhase();
-    
-    // Filter the signal to isolate luma
-    luma += lowpassPickable(global.pn_demodulator_luma_filter_type,
-        global.pn_demodulator_luma_filter_width, global.pn_demodulator_luma_filter_level,
-        global.pn_demodulator_luma_radius, global.pn_demodulator_luma_sigma,
-        global.pn_demodulator_luma_res,
-        global.pn_demodulator_luma_eq_f_lo, global.pn_demodulator_luma_eq_f_hi,
-        global.pn_demodulator_luma_eq_g_lo, global.pn_demodulator_luma_eq_g_mid, global.pn_demodulator_luma_eq_g_hi,
-        global.pn_demodulator_luma_eq_dist, global.pn_demodulator_luma_eq_off).r;
+    if(global.pn_connection_type > 1.5) { // YPbPr or RGB
+        FragColor = texture(Source, vTexCoord);
+    } else {
+        float luma = 0.0;
+        float chroma = 0.0;
         
-    
-    // Filter the signal to isolate chroma
-    chroma += bandpassPickable(global.pn_demodulator_chroma_filter_type,
-        global.pn_demodulator_chroma_filter_width, global.pn_demodulator_chroma_filter_level, global.pn_demodulator_chroma_filter_level_diff,
-        global.pn_demodulator_chroma_eq_f_lo, global.pn_demodulator_chroma_eq_f_hi,
-        global.pn_demodulator_chroma_eq_g_lo, global.pn_demodulator_chroma_eq_g_mid, global.pn_demodulator_chroma_eq_g_hi,
-        global.pn_demodulator_chroma_eq_dist, global.pn_demodulator_chroma_eq_dist, 0 // 0 means the chroma signal is in the R channel of the vector
-        ).r;
-    
-    if(global.pn_nes_enable < 0.5) {
-        luma *= global.pn_color_amplitude; // Correction by the color carrier amplitude
-    }
-    
-    float tint = global.pn_knob_tint * pi / 180.0;
-    
-    if(global.pn_nes_enable > 0.5 && global.pn_nes_real_capture < 0.5) {
-        // From lidnariq's measurements at http://forums.nesdev.org/viewtopic.php?p=159266#p159266
-        // 30 = colorburst max
-        // -23 = colorburst min
-        // 110 = white
-        // 0 = black
-        float nesAmp = (30.0 - -23.0) / 2.0 / (110.0 - 0.0);
-        float stdAmp = 0.2 * 100.0 / 110.0; // Standard colorburst amplitude in NTSC
-        chroma *= stdAmp / nesAmp;
-        float saturatedLevels[4] = {((0.228 + 0.616) / 2. - 0.312) / (1.100 - 0.312), ((0.312 + 0.840) / 2. - 0.312) / (1.100 - 0.312), ((0.552 + 1.100) / 2. - 0.312) / (1.100 - 0.312), ((0.880 + 1.100) / 2. - 0.312) / (1.100 - 0.312)}; // Calculated from DAC.slang from GTU-famicom
+        float phase = getPhase();
         
-        int satLevelI = -1; // Integer part. Can be 0, 1, or 2. If the level is 3 or higher, it is represented as 2 with a fractional part greater than 1.
-        float satLevelF; // Fractional part. If I=0, -1<F<1. If I=1, 0<F<1. If I=2, 0<F<2.
-        do {
-            if(satLevelI < 0)
-                satLevelI = 0;
-            else
-                satLevelI++;
-            float satYRemaining = luma - saturatedLevels[satLevelI];
-            satLevelF = satYRemaining / (saturatedLevels[satLevelI + 1] - saturatedLevels[satLevelI]);
-        } while(satLevelI < 2 && satLevelF > 1.0);
-        
-        // Skew amounts taken from Drag's NES palette generator.
-        // I remember seeing these on the nesdev forums somewhere too.
-        // The change is done here instead of in the video signal for better precision.
-        float skew;
-        if(global.pn_nes_hue_skew < 0.5) {
-            // 2C02G
-            skew = -5.0 / 180.0 * pi; // -5 degrees
+        if(global.pn_connection_type < 0.5) { // Composite
+            // Filter the signal to isolate luma
+            luma += lowpassPickable(global.pn_demodulator_luma_filter_type,
+                global.pn_demodulator_luma_filter_width, global.pn_demodulator_luma_filter_level,
+                global.pn_demodulator_luma_radius, global.pn_demodulator_luma_sigma,
+                global.pn_demodulator_luma_res).r;
+            // Filter the signal to isolate chroma
+            chroma += bandpassPickable(global.pn_demodulator_chroma_filter_type,
+                global.pn_demodulator_chroma_filter_width, global.pn_demodulator_chroma_filter_level, global.pn_demodulator_chroma_filter_level_diff).r;
         } else {
-            // 2C02E
-            skew = -2.5 / 180.0 * pi; // -2.5 degrees
+            // S-Video
+            vec2 sig = texture(Source, vTexCoord).rg;
+            luma = sig.g;
+            chroma = sig.r;
         }
         
-        tint += (3.0 - (satLevelI + satLevelF)) * skew;
+        if(global.pn_nes_enable < 0.5) { // Composite & S-Video
+            luma *= global.pn_color_amplitude; // Correction by the color carrier amplitude
+        }
+        
+        float tint = global.pn_knob_tint * pi / 180.0;
+        
+        if(global.pn_nes_enable > 0.5 && global.pn_nes_real_capture < 0.5) {
+            // From lidnariq's measurements at http://forums.nesdev.org/viewtopic.php?p=159266#p159266
+            // 30 = colorburst max
+            // -23 = colorburst min
+            // 110 = white
+            // 0 = black
+            float nesAmp = (30.0 - -23.0) / 2.0 / (110.0 - 0.0);
+            float stdAmp = 0.2 * 100.0 / 110.0; // Standard colorburst amplitude in NTSC
+            chroma *= stdAmp / nesAmp;
+            float saturatedLevels[4] = {((0.228 + 0.616) / 2. - 0.312) / (1.100 - 0.312), ((0.312 + 0.840) / 2. - 0.312) / (1.100 - 0.312), ((0.552 + 1.100) / 2. - 0.312) / (1.100 - 0.312), ((0.880 + 1.100) / 2. - 0.312) / (1.100 - 0.312)}; // Calculated from DAC.slang from GTU-famicom
+            
+            int satLevelI = -1; // Integer part. Can be 0, 1, or 2. If the level is 3 or higher, it is represented as 2 with a fractional part greater than 1.
+            float satLevelF; // Fractional part. If I=0, -1<F<1. If I=1, 0<F<1. If I=2, 0<F<2.
+            do {
+                if(satLevelI < 0)
+                    satLevelI = 0;
+                else
+                    satLevelI++;
+                float satYRemaining = luma - saturatedLevels[satLevelI];
+                satLevelF = satYRemaining / (saturatedLevels[satLevelI + 1] - saturatedLevels[satLevelI]);
+            } while(satLevelI < 2 && satLevelF > 1.0);
+            
+            // Skew amounts taken from Drag's NES palette generator.
+            // I remember seeing these on the nesdev forums somewhere too.
+            // The change is done here instead of in the video signal for better precision.
+            float skew;
+            if(global.pn_nes_hue_skew < 0.5) {
+                // 2C02G
+                skew = -5.0 / 180.0 * pi; // -5 degrees
+            } else {
+                // 2C02E
+                skew = -2.5 / 180.0 * pi; // -2.5 degrees
+            }
+            
+            tint += (3.0 - (satLevelI + satLevelF)) * skew;
+        }
+        
+        vec2 bmyRmy = uvDemodPickable(global.pn_demodulator_chroma_filter_type, chroma, phase, tint);
+        
+        FragColor = vec4(luma, bmyRmy, 1);
     }
-    
-    vec2 bmyRmy = uvDemodPickable(global.pn_demodulator_chroma_filter_type, chroma, phase, tint);
-    
-    FragColor = vec4(luma, bmyRmy, 1);
 }
 
